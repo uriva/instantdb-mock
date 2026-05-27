@@ -1,0 +1,16 @@
+{
+  "name": "@uri/instantdb-mock",
+  "version": "0.0.1",
+  "license": "MIT",
+  "exports": "./src/mod.ts",
+  "publish": {
+    "include": ["src/", "README.md", "LICENSE", "deno.json"]
+  },
+  "imports": {
+    "@instantdb/admin": "npm:@instantdb/admin@1.0.21",
+    "@instantdb/core": "npm:@instantdb/core@1.0.21"
+  },
+  "tasks": {
+    "check": "deno fmt --check && deno lint && deno check src/mod.ts"
+  }
+}
