@@ -185,14 +185,17 @@ export const createMockDb = <
           if (!targetId) return;
           const info = resolveLinkInfo(schemaLike, op.entity, label);
           if (!info) return;
-          const canonical = toCanonicalEndpoints(
-            info,
-            op.entity,
-            op.id,
-            targetId as string,
-          );
-          if (!links.some((l) => sameLink(l, canonical))) {
-            links.push(canonical);
+          const targetIds = Array.isArray(targetId) ? targetId : [targetId];
+          for (const tid of targetIds) {
+            const canonical = toCanonicalEndpoints(
+              info,
+              op.entity,
+              op.id,
+              tid as string,
+            );
+            if (!links.some((l) => sameLink(l, canonical))) {
+              links.push(canonical);
+            }
           }
         });
       } else if (op.type === "unlink") {
@@ -200,13 +203,16 @@ export const createMockDb = <
           if (!targetId) return;
           const info = resolveLinkInfo(schemaLike, op.entity, label);
           if (!info) return;
-          const canonical = toCanonicalEndpoints(
-            info,
-            op.entity,
-            op.id,
-            targetId as string,
-          );
-          links = links.filter((l) => !sameLink(l, canonical));
+          const targetIds = Array.isArray(targetId) ? targetId : [targetId];
+          for (const tid of targetIds) {
+            const canonical = toCanonicalEndpoints(
+              info,
+              op.entity,
+              op.id,
+              tid as string,
+            );
+            links = links.filter((l) => !sameLink(l, canonical));
+          }
         });
       }
     });
