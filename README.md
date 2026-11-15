@@ -6,11 +6,13 @@ client, driven entirely by your schema.
 Lets you run backend tests against an in-memory store without spinning up a real
 InstantDB app — fast, deterministic, no network.
 
-> ⚠️ This is a **partial mock**, not a full reimplementation of InstantDB. It
-> covers the most common admin-client read/write surface. It does **not**
-> enforce permissions, does **not** support real-time subscriptions, and skips a
-> handful of less common query features. See
-> [Limitations](#limitations--not-covered) below before using it.
+> ⚠️ This is a **partial mock**, not a full reimplementation of InstantDB.
+> `createMockDb(schema)` mocks the admin client (unrestricted reads/writes),
+> while `createPermissionedMockDb(schema, rules)` evaluates InstantDB CEL
+> permission rules (`instant.perms.ts`) across signup (`signUpWithEmail`,
+> `signUpAsGuest`), client `transact` (including `lookup()`), and `query`
+> (`view` + `fields` masking). It does **not** support real-time subscriptions.
+> See [Limitations](#limitations--not-covered) below before using it.
 
 ## Install
 
