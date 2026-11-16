@@ -262,3 +262,80 @@ Deno.test("permissioned transact & query: lookup onboarding, modifiedFields, dat
     ])
   );
 });
+
+Deno.test("auth.ref enforces $user. prefix and resolves both direct $users attributes and linked paths", async () => {
+  const schemaWithTier = i.schema({
+    entities: {
+      $users: i.entity({
+        email: i.string().unique().indexed().optional(),
+        tier: i.string().optional(),
+      }),
+      items: i.entity({
+        label: i.string(),
+        reserved: i.boolean().optional(),
+      }),
+    },
+    links: {
+      userItems: {
+        forward: { on: "items", has: "one", label: "owner" },
+        reverse: { on: "$users", has: "many", label: "items" },
+      },
+    },
+  });
+
+  const validRules: RulesLike = {
+    $default: { allow: { $default: "false" } },
+    items: {
+      allow: {
+        view:
+          "data.reserved != true || auth.ref('$user.tier').exists(t, t != 'Free') || auth.ref('$user.items.label').exists(l, l == 'vip-pass')",
+      },
+    },
+  };
+
+  const db = createPermissionedMockDb(schemaWithTier, validRules);
+  const { user: freeUser } = await db.signUpWithEmail({
+    email: "free@example.com",
+  });
+  const { user: proUser } = await db.signUpWithEmail({
+    email: "pro@example.com",
+  });
+  await db.admin.transact([
+    db.admin.tx.$users[freeUser.id].update({ tier: "Free" }),
+    db.admin.tx.$users[proUser.id].update({ tier: "Pro" }),
+    db.admin.tx.items["pub"].update({ label: "public", reserved: false }),
+    db.admin.tx.items["res"].update({ label: "secret", reserved: true }),
+  ]);
+
+  const freeRes = await db.asUser(freeUser).query({ items: {} });
+  if (freeRes.items.length !== 1) {
+    throw new Error(
+      `Expected 1 item for free user, got ${freeRes.items.length}`,
+    );
+  }
+  const proRes = await db.asUser(proUser).query({ items: {} });
+  if (proRes.items.length !== 2) {
+    throw new Error(
+      `Expected 2 items for pro user, got ${proRes.items.length}`,
+    );
+  }
+
+  const invalidRules: RulesLike = {
+    items: {
+      allow: {
+        view: "auth.ref('items.label').exists(l, l == 'x')",
+      },
+    },
+  };
+  let rejectedMissingPrefix = false;
+  try {
+    createPermissionedMockDb(schemaWithTier, invalidRules);
+  } catch (err) {
+    rejectedMissingPrefix = String(err).includes("must start with `$user.`");
+  }
+  if (!rejectedMissingPrefix) {
+    throw new Error(
+      "Expected auth.ref without $user. prefix to throw validation error",
+    );
+  }
+});

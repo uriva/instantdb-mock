@@ -5,6 +5,7 @@ import {
   evaluateCelRule,
   normalizeBindPairs,
   type RefResolver,
+  validateCelExpr,
 } from "./cel.ts";
 
 export class InstantPermissionError extends Error {
@@ -30,6 +31,37 @@ export type RulesLike = Record<
     fields?: Record<string, string | boolean>;
   }
 >;
+
+export const validateRules = (rules: RulesLike) => {
+  for (const [entity, spec] of Object.entries(rules)) {
+    if (!spec) continue;
+    for (const [, bindExpr] of normalizeBindPairs(spec.bind)) {
+      validateCelExpr(bindExpr);
+    }
+    if (spec.allow && typeof spec.allow === "object") {
+      for (const [key, val] of Object.entries(spec.allow)) {
+        if (
+          (key === "link" || key === "unlink") && val && typeof val === "object"
+        ) {
+          for (const linkVal of Object.values(val as Record<string, unknown>)) {
+            const expr = coerceRuleExpr(linkVal);
+            if (expr !== null) validateCelExpr(expr);
+          }
+        } else {
+          const expr = coerceRuleExpr(val);
+          if (expr !== null) validateCelExpr(expr);
+        }
+      }
+    }
+    if (spec.fields && typeof spec.fields === "object") {
+      for (const val of Object.values(spec.fields)) {
+        const expr = coerceRuleExpr(val);
+        if (expr !== null) validateCelExpr(expr);
+      }
+    }
+    void entity;
+  }
+};
 
 const SYSTEM_ENTITIES = new Set(["$users", "$files", "$streams"]);
 const SYSTEM_USER_FIELDS = new Set(["id", "email", "type", "imageURL"]);

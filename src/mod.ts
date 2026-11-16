@@ -17,6 +17,7 @@ import {
   type RulesLike,
   validateAttrsPermission,
   validateNonSystemUserUpdate,
+  validateRules,
 } from "./perms.ts";
 
 export {
@@ -355,7 +356,7 @@ const createInternalStore = <Schema extends InstantSchemaDef<any, any, any>>(
   ): unknown[] => {
     if (!entityType || !entityId || !path) return [];
     const parts = path.split(".");
-    if (parts.length < 2) return [];
+    if (parts.length < 2 && entityType !== "$users") return [];
     const attr = parts[parts.length - 1];
     const linkLabels = parts.slice(0, -1);
 
@@ -1031,6 +1032,7 @@ export const createPermissionedMockDb = <
   schema: Schema,
   rules: RulesLike,
 ): PermissionedMockDb<Schema> => {
+  validateRules(rules);
   const internal = createInternalStore(schema);
 
   const signUpWithEmail: PermissionedMockDb<Schema>["signUpWithEmail"] = async (

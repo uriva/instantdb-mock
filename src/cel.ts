@@ -286,14 +286,64 @@ const parseCel = (src: string): Expr => {
   return ast;
 };
 
+const validateAst = (node: Expr): void => {
+  switch (node.type) {
+    case "lit":
+    case "ident":
+      return;
+    case "list":
+      node.items.forEach(validateAst);
+      return;
+    case "unary":
+      validateAst(node.arg);
+      return;
+    case "binary":
+      validateAst(node.left);
+      validateAst(node.right);
+      return;
+    case "ternary":
+      validateAst(node.cond);
+      validateAst(node.truthy);
+      validateAst(node.falsy);
+      return;
+    case "member":
+      validateAst(node.target);
+      return;
+    case "index":
+      validateAst(node.target);
+      validateAst(node.index);
+      return;
+    case "call":
+      validateAst(node.callee);
+      node.args.forEach(validateAst);
+      if (
+        node.callee.type === "member" &&
+        node.callee.prop === "ref" &&
+        node.callee.target.type === "ident" &&
+        node.callee.target.name === "auth" &&
+        node.args.length === 1 &&
+        node.args[0].type === "lit" &&
+        typeof node.args[0].value === "string" &&
+        !node.args[0].value.startsWith("$user.")
+      ) {
+        throw new Error(
+          "Validation failed for rule: auth.ref arg must start with `$user.`",
+        );
+      }
+      return;
+  }
+};
+
 const astCache = new Map<string, Expr>();
-const getAst = (src: string): Expr => {
+export const validateCelExpr = (src: string): Expr => {
   const cached = astCache.get(src);
   if (cached) return cached;
   const parsed = parseCel(src);
+  validateAst(parsed);
   astCache.set(src, parsed);
   return parsed;
 };
+const getAst = validateCelExpr;
 
 const REF_TAG = Symbol("celRefTarget");
 
@@ -522,9 +572,12 @@ export const evaluateCelRule = (
             const rawId = (receiver as Record<string, unknown>).id;
             const id = rawId == null ? null : String(rawId);
             const rawPath = String(evalArgs[0]);
-            const path = tag.isAuth
-              ? rawPath.replace(/^\$user\./, "")
-              : rawPath;
+            if (tag.isAuth && !rawPath.startsWith("$user.")) {
+              throw new Error(
+                "Validation failed for rule: auth.ref arg must start with `$user.`",
+              );
+            }
+            const path = tag.isAuth ? rawPath.slice("$user.".length) : rawPath;
             return ctx.resolveRef(tag.entityType, id, path);
           }
           if (method === "size" && evalArgs.length === 0) {
